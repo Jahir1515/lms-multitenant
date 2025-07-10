@@ -250,6 +250,12 @@ $RECYCLE.BIN/
 
 # Local SQLite (D1)
 *.db
+*.db-journal
 *.sqlite
+
+# Drizzle migrations
+/drizzle/migrations/
+/drizzle/.gitignore
+!drizzle/migrations/meta/_journal.json
 
 # End of https://www.toptal.com/developers/gitignore/api/node,typescript,visualstudiocode,cloudflare,macos,windows,linux
