@@ -1,48 +1,26 @@
-import jwt from "jsonwebtoken";
-import { JWTPayload, RefreshTokenPayload } from "../types/auth";
+import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 
-export function createAccessToken(payload: JWTPayload, secret: string): string {
-  return jwt.sign(payload, secret, {
-    expiresIn: "15m", 
-    algorithm: "HS256",
-  });
+interface CustomJWTPayload extends JWTPayload {
+  userId: number;
+  academyId: number;
+  role: string;
 }
-export function createRefreshToken(
-  payload: RefreshTokenPayload,
+
+export const generateToken = async (
+  payload: CustomJWTPayload,
   secret: string
-): string {
-  return jwt.sign(payload, secret, {
-    expiresIn: "7d",
-    algorithm: "HS256",
-  });
-}
+): Promise<string> => {
+  return await new SignJWT(payload)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .sign(new TextEncoder().encode(secret));
+};
 
-export function verifyAccessToken(
+export const verifyToken = async (
   token: string,
   secret: string
-): JWTPayload | null {
-  try {
-    const decoded = jwt.verify(token, secret) as JWTPayload;
-    return decoded;
-  } catch (error) {
-    console.error("Error verificando access token:", error);
-    return null;
-  }
-}
-
-export function verifyRefreshToken(
-  token: string,
-  secret: string
-): RefreshTokenPayload | null {
-  try {
-    const decoded = jwt.verify(token, secret) as RefreshTokenPayload;
-    return decoded;
-  } catch (error) {
-    console.error("Error verificando refresh token:", error);
-    return null;
-  }
-}
-
-export function generateTokenId(): string {
-  return crypto.randomUUID();
-}
+): Promise<CustomJWTPayload> => {
+  const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
+  return payload as CustomJWTPayload;
+};

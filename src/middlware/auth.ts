@@ -1,7 +1,13 @@
 // src/middleware/auth.ts
 import { Next } from "hono";
-import { verifyAccessToken } from "../utils/jwt";
+import { type JWTPayload, jwtVerify } from "jose";
 import { AppContext, AuthenticatedUser } from "../types/hono";
+
+interface CustomJWTPayload extends JWTPayload {
+  userId: string;
+  academyId: string;
+  role: "admin" | "teacher" | "student";
+}
 
 export async function verifyJWT(c: AppContext, next: Next) {
   try {
@@ -12,24 +18,28 @@ export async function verifyJWT(c: AppContext, next: Next) {
     }
 
     const token = authHeader.substring(7); // Remover "Bearer "
-    const payload = verifyAccessToken(token, c.env.JWT_SECRET);
 
-    if (!payload) {
-      return c.json({ error: "Token inválido o expirado" }, 401);
-    }
+    // Verificar token con jose
+    const { payload } = await jwtVerify(
+      token,
+      new TextEncoder().encode(c.env.JWT_SECRET)
+    ).catch(() => {
+      throw new Error("Token inválido");
+    });
+
+    const customPayload = payload as CustomJWTPayload;
 
     // Buscar usuario en la base de datos
     const user = await c.env.DB.prepare(
       "SELECT id, email, role, academy_id FROM users WHERE id = ?"
     )
-      .bind(payload.userId)
+      .bind(customPayload.userId)
       .first();
 
     if (!user) {
       return c.json({ error: "Usuario no encontrado" }, 401);
     }
 
-    // Crear objeto usuario tipado
     const authenticatedUser: AuthenticatedUser = {
       id: user.id as string,
       email: user.email as string,
@@ -37,23 +47,27 @@ export async function verifyJWT(c: AppContext, next: Next) {
       academyId: user.academy_id as string,
     };
 
-    // Ahora TypeScript reconoce 'user' como una variable válida
     c.set("user", authenticatedUser);
     await next();
   } catch (error) {
-    return c.json({ error: "Token inválido" }, 401);
+    return c.json(
+      {
+        error: error instanceof Error ? error.message : "Token inválido",
+      },
+      401
+    );
   }
 }
 
+// El resto de middlewares permanecen igual (solo cambia el tipo de user)
 export function authorize(allowedRoles: ("admin" | "teacher" | "student")[]) {
   return async (c: AppContext, next: Next) => {
-    const user = c.get("user"); // Ahora TypeScript sabe que user es AuthenticatedUser
+    const user = c.get("user");
 
     if (!user) {
       return c.json({ error: "Usuario no autenticado" }, 401);
     }
 
-    // Verificar rol
     if (!allowedRoles.includes(user.role)) {
       return c.json(
         {
@@ -71,20 +85,18 @@ export function authorize(allowedRoles: ("admin" | "teacher" | "student")[]) {
 
 export function verifyTeacherCourseAccess() {
   return async (c: AppContext, next: Next) => {
-    const user = c.get("user"); // Tipado automático
+    const user = c.get("user");
     const courseId = c.req.param("courseId");
 
     if (!courseId) {
       return c.json({ error: "Course ID requerido" }, 400);
     }
 
-    // Si es admin, tiene acceso total
     if (user.role === "admin") {
       await next();
       return;
     }
 
-    // Si es teacher, verificar que el curso le pertenece
     if (user.role === "teacher") {
       const course = await c.env.DB.prepare(
         "SELECT id FROM courses WHERE id = ? AND instructor_user_id = ? AND academy_id = ?"
