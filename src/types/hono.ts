@@ -16,6 +16,7 @@ export interface Env extends HonoEnv {
   R2_MATERIALS: R2Bucket;
   JWT_SECRET: string;
   JWT_REFRESH_SECRET: string;
+  API_KEY: string;
   API_VERSION: string;
   CORS_ORIGIN: string;
   MAX_FILE_SIZE: string;
