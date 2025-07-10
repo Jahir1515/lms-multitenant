@@ -50,7 +50,7 @@
   },
   "devDependencies": {
     "drizzle-kit": "^0.20.0",
-    "wrangler": "^3.28.0",
+    "wrangler": "^4.24.0",
     "typescript": "^5.3.0",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/bcryptjs": "^2.4.6",
