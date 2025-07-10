@@ -1,0 +1,46 @@
+name = "lms-multitenant-api"
+main = "src/index.ts"
+compatibility_date = "2024-07-10"
+node_compat = true
+
+# Variables globales por defecto
+[vars]
+ENVIRONMENT = "staging"
+API_VERSION = "v1"
+CORS_ORIGIN = "http://localhost:5173"
+MAX_FILE_SIZE = "10485760" 
+ALLOWED_FILE_TYPES = "pdf,doc,docx,ppt,pptx,jpg,jpeg,png,gif,mp4,mp3"
+
+# 1. Binding de D1 
+[[d1_databases]]
+binding = "DB"
+database_name = "lms-multitenant-db"
+database_id = "cfa32ffa-d643-47db-b0f3-df02c47a7ea2"
+
+# 2. R2 Bucket para materiales educativos
+[[r2_buckets]]
+binding = "R2_MATERIALS"
+bucket_name = "lms-materials"
+preview_bucket_name = "lms-materials-preview"  # Para desarrollo
+
+# 3. KV para caché y sesiones
+[[kv_namespaces]]
+binding = "CACHE_KV"
+id = ""  # Llenar después de crear: wrangler kv:namespace create "CACHE_KV"
+preview_id = ""  # Para desarrollo local
+
+# 4. Configuración de desarrollo
+[env.development]
+name = "lms-multitenant-api-dev"
+vars = { 
+  ENVIRONMENT = "development",
+  CORS_ORIGIN = "http://localhost:5173",
+}
+
+# 5. Configuración de producción
+[env.production]
+name = "lms-multitenant-api-prod"
+vars = { 
+  ENVIRONMENT = "production",
+  CORS_ORIGIN = "https://your-frontend-domain.com",
+}
