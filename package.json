@@ -17,9 +17,8 @@
     "cf:create-kv": "wrangler kv:namespace create CACHE",
     "build": "wrangler deploy --dry-run",
     "type-check": "tsc --noEmit",
-    "types": "wrangler types > src/cloudflare-env.d.ts && npm run db:types",
-    "db:types": "drizzle-kit generate:types --schema ./src/db/schema.ts --out ./src/db-types.ts",
-    "postinstall": "npm run types"
+    "generate-types": "wrangler types",
+    "setup": "npm run generate-types && npm run db:generate"
   },
   "repository": {
     "type": "git",
@@ -41,19 +40,19 @@
   },
   "homepage": "https://github.com/Jahir1515/lms-multitenant#readme",
   "dependencies": {
-    "drizzle-orm": "^0.29.0",
     "@cloudflare/workers-types": "^4.20240221.0",
+    "bcryptjs": "^2.4.3",
+    "drizzle-orm": "^0.29.0",
     "hono": "^3.12.0",
     "jsonwebtoken": "^9.0.2",
-    "bcryptjs": "^2.4.3",
     "zod": "^3.22.0"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.20.0",
-    "wrangler": "^4.24.0", 
-    "typescript": "^5.3.0",
-    "@types/jsonwebtoken": "^9.0.5",
     "@types/bcryptjs": "^2.4.6",
-    "@types/node": "20.8.3"
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "20.8.3",
+    "drizzle-kit": "^0.20.0",
+    "typescript": "^5.3.0",
+    "wrangler": "^4.24.0"
   }
 }
