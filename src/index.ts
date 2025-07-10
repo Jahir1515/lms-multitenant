@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { AuthController } from "./controllers/auth";
 import { verifyJWT, authorize } from "./middleware/auth";
 import type { Env, AuthenticatedUser } from "./types/hono";
+import courses from "./routes/courses";
 
 const app = new Hono<{
   Bindings: Env;
@@ -40,5 +41,7 @@ api.get("/student/*", verifyJWT, authorize(["admin", "teacher", "student"]));
 
 // Montar rutas en /api/v1
 app.route("/api/v1", api);
+
+api.route("/courses", courses);
 
 export default app;
