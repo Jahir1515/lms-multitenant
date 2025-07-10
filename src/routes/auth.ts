@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { AuthController } from "../controllers/auth";
-import { verifyJWT } from "../middlware/auth";
+import { verifyJWT } from "../middleware/auth";
 
 interface Env {
   DB: D1Database;
