@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Learning Management System using multitenancy with Cloudflare workers",
   "main": "src/index.ts",
-  "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
@@ -53,7 +52,9 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.8.3",
+    "better-sqlite3": "^12.2.0",
     "drizzle-kit": "^0.31.4",
+    "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "wrangler": "^4.24.0"
   }
