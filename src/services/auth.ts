@@ -1,16 +1,7 @@
+import { SignJWT, jwtVerify } from "jose";
 import { verifyPassword } from "../utils/password";
-import {
-  createAccessToken,
-  createRefreshToken,
-  generateTokenId,
-  verifyRefreshToken,
-} from "../utils/jwt";
-import {
-  User,
-  LoginResponse,
-  JWTPayload,
-  RefreshTokenPayload,
-} from "../types/auth";
+import { User, LoginResponse } from "../types/auth";
+import { generateTokenId } from "../utils/tokens";
 
 interface AuthServiceEnv {
   DB: D1Database;
@@ -40,27 +31,29 @@ export class AuthService {
 
     const tokenId = generateTokenId();
 
-    const accessTokenPayload: JWTPayload = {
+    // Generar access token con jose
+    const accessToken = await new SignJWT({
       userId: user.id,
       email: user.email,
       role: user.role,
       academyId: user.academy_id,
-    };
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("15m")
+      .sign(new TextEncoder().encode(this.env.JWT_SECRET));
 
-    const refreshTokenPayload: RefreshTokenPayload = {
+    // Generar refresh token con jose
+    const refreshToken = await new SignJWT({
       userId: user.id,
       tokenId,
-    };
+    })
+      .setProtectedHeader({ alg: "HS256" })
+      .setIssuedAt()
+      .setExpirationTime("7d")
+      .sign(new TextEncoder().encode(this.env.JWT_REFRESH_SECRET));
 
-    const accessToken = createAccessToken(
-      accessTokenPayload,
-      this.env.JWT_SECRET
-    );
-    const refreshToken = createRefreshToken(
-      refreshTokenPayload,
-      this.env.JWT_REFRESH_SECRET
-    );
-
+    // Almacenar refresh token en KV
     await this.env.KV_SESSIONS.put(
       `refresh_token:${tokenId}`,
       JSON.stringify({
@@ -68,7 +61,7 @@ export class AuthService {
         email: user.email,
         createdAt: new Date().toISOString(),
       }),
-      { expirationTtl: 7 * 24 * 60 * 60 } 
+      { expirationTtl: 7 * 24 * 60 * 60 }
     );
 
     return {
@@ -86,60 +79,65 @@ export class AuthService {
   async refreshAccessToken(
     refreshToken: string
   ): Promise<{ accessToken: string } | null> {
-    const payload = verifyRefreshToken(
-      refreshToken,
-      this.env.JWT_REFRESH_SECRET
-    );
-    if (!payload) {
+    try {
+      const { payload } = await jwtVerify(
+        refreshToken,
+        new TextEncoder().encode(this.env.JWT_REFRESH_SECRET)
+      );
+
+      const tokenId = payload.tokenId as string;
+      const userId = payload.userId as string;
+
+      const storedToken = await this.env.KV_SESSIONS.get(
+        `refresh_token:${tokenId}`
+      );
+      if (!storedToken) {
+        return null;
+      }
+
+      const user = (await this.env.DB.prepare(
+        "SELECT id, email, role, academy_id FROM users WHERE id = ?"
+      )
+        .bind(userId)
+        .first()) as User | null;
+
+      if (!user) {
+        await this.env.KV_SESSIONS.delete(`refresh_token:${tokenId}`);
+        return null;
+      }
+
+      // Generar nuevo access token
+      const accessToken = await new SignJWT({
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        academyId: user.academy_id,
+      })
+        .setProtectedHeader({ alg: "HS256" })
+        .setIssuedAt()
+        .setExpirationTime("15m")
+        .sign(new TextEncoder().encode(this.env.JWT_SECRET));
+
+      return { accessToken };
+    } catch (error) {
       return null;
     }
-
-    const storedToken = await this.env.KV_SESSIONS.get(
-      `refresh_token:${payload.tokenId}`
-    );
-    if (!storedToken) {
-      return null;
-    }
-
-    const tokenData = JSON.parse(storedToken);
-
-    const user = (await this.env.DB.prepare(
-      "SELECT id, email, role, academy_id FROM users WHERE id = ?"
-    )
-      .bind(payload.userId)
-      .first()) as User | null;
-
-    if (!user) {
-      await this.env.KV_SESSIONS.delete(`refresh_token:${payload.tokenId}`);
-      return null;
-    }
-
-    const accessTokenPayload: JWTPayload = {
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      academyId: user.academy_id,
-    };
-
-    const accessToken = createAccessToken(
-      accessTokenPayload,
-      this.env.JWT_SECRET
-    );
-
-    return { accessToken };
   }
 
   async logout(refreshToken: string): Promise<boolean> {
-    const payload = verifyRefreshToken(
-      refreshToken,
-      this.env.JWT_REFRESH_SECRET
-    );
-    if (!payload) {
+    try {
+      const { payload } = await jwtVerify(
+        refreshToken,
+        new TextEncoder().encode(this.env.JWT_REFRESH_SECRET)
+      );
+
+      await this.env.KV_SESSIONS.delete(
+        `refresh_token:${payload.tokenId as string}`
+      );
+      return true;
+    } catch {
       return false;
     }
-
-    await this.env.KV_SESSIONS.delete(`refresh_token:${payload.tokenId}`);
-    return true;
   }
 
   async getUserById(userId: string): Promise<User | null> {
@@ -153,19 +151,16 @@ export class AuthService {
   }
 
   async logoutAllSessions(userId: string): Promise<void> {
-  
     const userTokensKey = `user_tokens:${userId}`;
     const userTokens = await this.env.KV_SESSIONS.get(userTokensKey);
 
     if (userTokens) {
       const tokenIds = JSON.parse(userTokens) as string[];
-
       await Promise.all(
         tokenIds.map((tokenId) =>
           this.env.KV_SESSIONS.delete(`refresh_token:${tokenId}`)
         )
       );
-
       await this.env.KV_SESSIONS.delete(userTokensKey);
     }
   }
