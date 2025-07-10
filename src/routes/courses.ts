@@ -10,7 +10,7 @@ const courses = new Hono<{
   };
 }>();
 
-// Validadores
+// Schemas Zod
 const courseSchema = z.object({
   title: z.string().min(3),
 });
@@ -20,13 +20,23 @@ const lessonSchema = z.object({
   status: z.enum(["draft", "published"]),
 });
 
-// Obtener cursos
+// Params schema para IDs (UUID o strings genéricos)
+const idParamSchema = z.object({
+  id: z.string(),
+});
+
+const lessonIdParamSchema = z.object({
+  lessonId: z.string(),
+});
+
+// Obtener cursos (filtrar por academy_id)
 courses.get(
   "/",
   verifyJWT,
   authorize(["admin", "teacher", "student"]),
   async (c) => {
     const user = c.get("user");
+
     const result = await c.env.DB.prepare(
       "SELECT * FROM courses WHERE academy_id = ?"
     )
@@ -37,7 +47,7 @@ courses.get(
   }
 );
 
-// Crear curso
+// Crear curso (body validado)
 courses.post("/", verifyJWT, authorize(["admin", "teacher"]), async (c) => {
   const user = c.get("user");
   const body = await c.req.json();
@@ -56,34 +66,58 @@ courses.post("/", verifyJWT, authorize(["admin", "teacher"]), async (c) => {
   return c.json(result.results[0], 201);
 });
 
-// CRUD de lecciones
+// Listar lecciones (según rol y validando params)
 courses.get(
   "/:id/lessons",
   verifyJWT,
   authorize(["admin", "teacher", "student"]),
   async (c) => {
-    const courseId = c.req.param("id");
     const user = c.get("user");
+    const paramsValidation = idParamSchema.safeParse(c.req.param());
+    if (!paramsValidation.success) {
+      return c.json({ error: "Invalid course ID" }, 400);
+    }
+    const courseId = paramsValidation.data.id;
 
-    const result = await c.env.DB.prepare(
-      "SELECT * FROM lessons WHERE course_id = ? AND author_user_id = ?"
-    )
-      .bind(courseId, user.id)
+    let query = "";
+    let bindParams: any[] = [];
+
+    if (user.role === "student") {
+      // Los estudiantes solo ven lecciones publicadas de su curso
+      query =
+        "SELECT * FROM lessons WHERE course_id = ? AND status = 'published'";
+      bindParams = [courseId];
+    } else {
+      // Admin y teacher ven todas las lecciones de ese curso
+      query = "SELECT * FROM lessons WHERE course_id = ?";
+      bindParams = [courseId];
+    }
+
+    const result = await c.env.DB.prepare(query)
+      .bind(...bindParams)
       .all();
 
     return c.json(result.results);
   }
 );
 
+// Crear lección
 courses.post(
   "/:id/lessons",
   verifyJWT,
   authorize(["admin", "teacher"]),
   async (c) => {
-    const courseId = c.req.param("id");
     const user = c.get("user");
-    const body = await c.req.json();
 
+    // Validar params
+    const paramsValidation = idParamSchema.safeParse(c.req.param());
+    if (!paramsValidation.success) {
+      return c.json({ error: "Invalid course ID" }, 400);
+    }
+    const courseId = paramsValidation.data.id;
+
+    // Validar body
+    const body = await c.req.json();
     const parsed = lessonSchema.safeParse(body);
     if (!parsed.success) {
       return c.json({ error: parsed.error.flatten() }, 400);
@@ -106,7 +140,20 @@ courses.delete(
   authorize(["admin", "teacher"]),
   async (c) => {
     const user = c.get("user");
-    const { id: courseId, lessonId } = c.req.param();
+
+    // Validar params
+    const paramsValidation = z
+      .object({
+        id: z.string(),
+        lessonId: z.string(),
+      })
+      .safeParse(c.req.param());
+
+    if (!paramsValidation.success) {
+      return c.json({ error: "Invalid parameters" }, 400);
+    }
+
+    const { id: courseId, lessonId } = paramsValidation.data;
 
     const result = await c.env.DB.prepare(
       "DELETE FROM lessons WHERE id = ? AND course_id = ? AND author_user_id = ? RETURNING *"
@@ -114,9 +161,11 @@ courses.delete(
       .bind(lessonId, courseId, user.id)
       .run();
 
-    return c.json(
-      result.results[0] ?? { message: "No se encontró o no autorizado" }
-    );
+    if (!result.results[0]) {
+      return c.json({ message: "Not found or unauthorized" }, 404);
+    }
+
+    return c.json(result.results[0]);
   }
 );
 
