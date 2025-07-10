@@ -1,0 +1,61 @@
+{
+  "name": "lms-multitenant",
+  "version": "1.0.0",
+  "description": "Learning Management System using multitenancy with Cloudflare workers",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply lms-multitenant-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply lms-multitenant-db --remote",
+    "db:migrate:prod": "wrangler d1 migrations apply lms-multitenant-db",
+    "db:studio": "drizzle-kit studio",
+    "db:push": "drizzle-kit push",
+    "cf:create-db": "wrangler d1 create lms-multitenant-db",
+    "cf:create-r2": "wrangler r2 bucket create lms-materials",
+    "cf:create-kv": "wrangler kv:namespace create CACHE",
+    "build": "wrangler deploy --dry-run",
+    "type-check": "tsc --noEmit",
+    "generate-types": "wrangler types",
+    "setup": "npm run generate-types && npm run db:generate"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jahir1515/lms-multitenant.git"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "lms",
+    "multi-tenant",
+    "typescript",
+    "drizzle",
+    "hono"
+  ],
+  "author": "Jahir",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Jahir1515/lms-multitenant/issues"
+  },
+  "homepage": "https://github.com/Jahir1515/lms-multitenant#readme",
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20250710.0",
+    "@hono/node-server": "^1.15.0",
+    "bcryptjs": "^2.4.3",
+    "drizzle-orm": "^0.44.2",
+    "hono": "^4.8.4",
+    "jose": "^6.0.11",
+    "universal-crypto": "^0.0.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.8.3",
+    "better-sqlite3": "^12.2.0",
+    "drizzle-kit": "^0.31.4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3",
+    "wrangler": "^4.24.0"
+  }
+}
